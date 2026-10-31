@@ -81,7 +81,7 @@ the engine and wrote the config and the app change); a run on an empty machine h
 
 | Where | What |
 | --- | --- |
-| This repository | The patched engine sources, `setup-coder-mac.sh`, `tools/mac_*coder*.py`, `app-patch/` (reference copies), this README. Build output (`build-metal/`) and downloads (`third_party/`, and `models/` and `packs/` if you keep the default data folder) are git-ignored. |
+| This repository | The patched engine sources, `setup-coder-mac.sh`, `tools/mac_*coder*.py`, `app-patch/` (reference copies and the opencode config), this README. Build output (`build-metal/`) and downloads (`third_party/`, and `models/` and `packs/` if you keep the default data folder) are git-ignored. |
 | `--data-dir` (default: the repository folder; the manual steps below use its parent) | `models/IQ1_M/` (58 GB), `models/mmproj-...gguf`, `packs/iq1_m/`. |
 | `~/.local/share/strata/install/` | `strata-coder-iq1_m.json` (the run config, including the arena setting), its `.bak` and log, and `run-coder-iq1_m.sh`. |
 | `~/.local/share/strata/components/control/` | The patched copy of the app's Control component, and `active.json` that points the app at it. |
@@ -298,6 +298,66 @@ set `--api-key`.
 Useful `server.py` options: `--port`, `--host`, `--api-key`, `--lazy` (load on first request), `--idle-unload SECONDS`,
 `--parallel N`. `server.py --help` lists the rest.
 
+## Use it with opencode (coding agent)
+
+[opencode](https://opencode.ai) can use the Coder as its model through the server's OpenAI-compatible API. The working config is
+kept in [`app-patch/opencode/opencode.json`](app-patch/opencode/opencode.json).
+
+1. Start the model, with the GUI (Option A) or the start script (Option B), and wait until it is ready. Check:
+   ```bash
+   curl -s http://127.0.0.1:8080/v1/models
+   ```
+   The `id` it prints (`qwen3.8-flash-next-coder-iq1_m`) is the model name opencode must use. If you changed the port in the
+   run config, use that port below.
+2. Put the config in place. If you already have an opencode config, merge the `provider.local` block and the `model` line into it
+   instead of overwriting it:
+   ```bash
+   mkdir -p ~/.config/opencode
+   cp app-patch/opencode/opencode.json ~/.config/opencode/opencode.json
+   ```
+3. Start opencode in your project: `cd your-project && opencode .` (it uses the model from the config; `/models` shows it as
+   *Strata Coder (local)*).
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Strata Coder (local)",
+      "options": { "baseURL": "http://127.0.0.1:8080/v1" },
+      "models": {
+        "qwen3.8-flash-next-coder-iq1_m": {
+          "name": "Qwen3.8 Flash Next Coder IQ1_M",
+          "limit": { "context": 131072, "output": 16384 }
+        }
+      }
+    }
+  },
+  "model": "local/qwen3.8-flash-next-coder-iq1_m"
+}
+```
+
+Why each part matters:
+
+| Setting | Why |
+| --- | --- |
+| `npm: "@ai-sdk/openai-compatible"` | **Required** for a custom provider. Without it opencode fails with `UnsupportedPackageError: Unsupported package for local/...` (see its log in `~/.local/share/opencode/log/`), even though `curl` works. |
+| model key `qwen3.8-flash-next-coder-iq1_m` | Must be the `id` from `/v1/models`. opencode sends this key as the model name. |
+| `baseURL` with `127.0.0.1` | The server listens on this Mac only. Do not expose it on the network without `--api-key`. |
+| `limit.context` `131072` | The context the run config sets (`--max-context`). A larger value only fails later. If you lower `--max-context`, lower this too. |
+| `limit.output` `16384` | Upper bound for one reply. |
+| no `apiKey` | The server started by this fork needs none. If you start it with `--api-key`, add `"apiKey": "{env:STRATA_API_KEY}"` under `options` and export that variable; do not write the key into the file. |
+
+What to expect (checked with `curl`; the opencode session itself was not benchmarked):
+
+- The server accepted a request with a tool definition and answered at about 23 tokens/s, so opencode's tool requests are accepted.
+  How reliably this heavily quantised IQ1_M model calls tools was not tested.
+- opencode sends a large system prompt, so the **first reply is slow** (prompt reading was about 100 tokens/s on a short prompt,
+  about 400 on a long one). Later turns reuse the server's prompt cache.
+- Only one model runs at a time and it needs most of your RAM, so avoid running other heavy apps while coding.
+- The model returns its reasoning in a separate `reasoning_content` field.
+
 ## Speed and memory
 
 The model is 58 GB. A Mac with less than about 64 GB cannot hold it, so the engine keeps the **dense weights and a cache of the
@@ -415,6 +475,7 @@ Other switches (all go in the same `env` block; see also [docs/MAC.md](docs/MAC.
 | After a re-install the config mentions `/Volumes/Strata 0.2.1/...` and the model fails to start | The app was opened from the `.dmg` instead of `/Applications`, and rewrote the configs' paths to the disk image. Drag `Strata.app` to `/Applications`, eject the image, and fix the paths: `sed -i '' 's#/Volumes/Strata [0-9.]*/Strata.app#/Applications/Strata.app#g' ~/.local/share/strata/install/strata-*.json` |
 | Slow answers (10 to 13 tok/s) | The engine's default expert arena is small on a 36 GB Mac. See [Speed and memory](#speed-and-memory) and set `STRATA_METAL_ARENA_GB`. |
 | Answers got slower after raising the arena, or the Mac feels sluggish | The value is too high and macOS is swapping. Lower `STRATA_METAL_ARENA_GB` by 2 to 4 GB (check `vm_stat | grep Swapouts` while generating). |
+| opencode says `Unsupported package for local/...` | The provider block lacks `"npm": "@ai-sdk/openai-compatible"`. See [Use it with opencode](#use-it-with-opencode-coding-agent). |
 | Engine log | `~/.local/share/strata/install/strata-coder-iq1_m.log`; app logs are in `~/.local/share/strata/logs/`. |
 
 ## Rebuilding after a change

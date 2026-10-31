@@ -9,6 +9,7 @@ These are **reference copies**, kept so you can see (and review) exactly what `s
 | `install/strata-coder-iq1_m.json` | `~/.local/share/strata/install/strata-coder-iq1_m.json` | `tools/mac_write_coder_config.py` |
 | `control-0.1.46.1/` | `~/.local/share/strata/components/control/0.1.46.1/` | `tools/mac_add_coder_to_app.py` |
 | `active.json` | `~/.local/share/strata/components/control/active.json` | `tools/mac_add_coder_to_app.py` |
+| `opencode/opencode.json` | `~/.config/opencode/opencode.json` (copy it yourself) | you; see "Use it with opencode" in the main README |
 
 ## The run config
 
