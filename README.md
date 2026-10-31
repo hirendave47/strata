@@ -288,6 +288,10 @@ ninja -C build-metal strata
 The tests that cover this change (built from the same tree): `ninja -C build-metal route_parity prompt_parity`, then run the
 resulting binaries from `build-metal`.
 
+## M5 Max 32GB Macbook inference speed of 27 tok/s
+<img width="2864" height="1822" alt="sceenshot 2026-10-31 at 5 02 06 PM@2x" src="https://github.com/user-attachments/assets/d93bd7d2-2dd9-462c-8b13-d4fee26c5751" />
+
+
 ## Credits and licenses
 
 - **Strata**, the engine, desktop app and tooling this fork is based on: <https://github.com/Niko1221/Strata>
